@@ -26,6 +26,23 @@ tasks:
       - task: init:target
       - task: init:wasmtime
 
+  deploy:
+    desc: Deploy to krustlet
+    deps:
+      - build
+      - cluster
+
+  teardown:
+    desc: Tear down environment
+    cmds:
+      - task: cluster:remove
+
+  cluster:
+    cmds:
+      - task: cluster:create
+      - task: cluster:bootstrap
+      - task: cluster:krustlet
+
   init:target:
     cmds:
       - rustup target add wasm32-wasi
@@ -38,3 +55,32 @@ tasks:
       - read -p "Press enter to continue:"
     status:
       - command -v wasmtime &>/dev/null
+
+  init:kind:
+    cmds:
+      - echo "Install kind before continuing"
+      - read -p "Press enter to continue:"
+    status:
+      - command -v kind &>/dev/null
+
+  cluster:create:
+    deps:
+      - init:kind
+    cmds:
+      - kind create cluster --config kind-config.yaml
+    status:
+      - kind get clusters 2>/dev/null | grep -q wasm-dev
+
+  cluster:remove:
+    deps:
+      - init:kind
+    cmds:
+      - kind delete cluster --name wasm-dev
+
+  cluster:bootstrap:
+    cmds:
+      - ./krustlet-bootstrap.sh
+
+  cluster:krustlet:
+    cmds:
+      - KUBECONFIG=~/.krustlet/config/kubeconfig krustlet-wasi --node-ip=172.17.0.1 --node-name=krustlet --bootstrap-file=$HOME/.krustlet/config/bootstrap.conf
