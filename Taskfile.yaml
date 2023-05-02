@@ -13,6 +13,14 @@ tasks:
     generates:
       - target/wasm32-wasi/release/hello-world-repeater.wasm
 
+  image:build:
+    cmds:
+      - docker build -t hello-world-repeater:v0.0.1 .
+
+  image:load:
+    cmds:
+      - kind load docker-image hello-world-repeater:v0.0.1 --name wasm-dev
+
   run:
     desc: Run with wasmtime
     deps:
@@ -27,10 +35,13 @@ tasks:
       - task: init:wasmtime
 
   deploy:
-    desc: Deploy to krustlet
+    desc: Deploy to cluster
     deps:
-      - build
       - cluster
+    cmds:
+      - task: image:build
+      - task: image:load
+      - kubectl apply -f ./k8s/hello-world.yaml
 
   teardown:
     desc: Tear down environment
@@ -39,9 +50,11 @@ tasks:
 
   cluster:
     cmds:
+      - task: cluster:node-image
       - task: cluster:create
-      - task: cluster:bootstrap
-      - task: cluster:krustlet
+      - kubectl apply -f ./k8s/runtime-class.yaml
+      # - task: cluster:krustlet:bootstrap
+      # - task: cluster:krustlet:run
 
   init:target:
     cmds:
@@ -63,11 +76,15 @@ tasks:
     status:
       - command -v kind &>/dev/null
 
+  cluster:node-image:
+    cmds:
+      - docker build -t kind-node-image node-image
+
   cluster:create:
     deps:
       - init:kind
     cmds:
-      - kind create cluster --config kind-config.yaml
+      - kind create cluster --config kind-config.yaml --image kind-node-image
     status:
       - kind get clusters 2>/dev/null | grep -q wasm-dev
 
@@ -77,10 +94,10 @@ tasks:
     cmds:
       - kind delete cluster --name wasm-dev
 
-  cluster:bootstrap:
+  cluster:krustlet:bootstrap:
     cmds:
       - ./krustlet-bootstrap.sh
 
-  cluster:krustlet:
+  cluster:krustlet:run:
     cmds:
       - KUBECONFIG=~/.krustlet/config/kubeconfig krustlet-wasi --node-ip=172.17.0.1 --node-name=krustlet --bootstrap-file=$HOME/.krustlet/config/bootstrap.conf

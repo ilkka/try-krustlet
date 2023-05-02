@@ -1,0 +1,12 @@
+authors = ["ilkka.poutanen@futurice.com"]
+description = "Hello world running on spin shim"
+name = "hello-world-repeater"
+spin_version = "1"
+trigger = {type = "http", base = "/"}
+version = "1.0.0"
+
+[[component]]
+id = "hello"
+source = "hello-world-repeater.wasm"
+[component.trigger]
+route = "/hello"
